@@ -49,16 +49,22 @@
     const previewPane  = document.getElementById('preview-pane');
     const toast        = document.getElementById('toast');
 
-    // Room UI
     const roomInput    = document.getElementById('room-input');
     const btnJoinRoom  = document.getElementById('btn-join-room');
     const btnNewRoom   = document.getElementById('btn-new-room');
     const roomStatus   = document.getElementById('room-status');
+    const liveUsers    = document.getElementById('live-users');
 
     // --- State ---
     let toastTimeout = null;
     let syncTimeout = null;
     let detectTimeout = null;
+    
+    // Presence State
+    const sessionId = 'session_' + Math.random().toString(36).substr(2, 9);
+    let presenceRef = null;
+    let usersRef = null;
+    let connectedRef = db ? db.ref('.info/connected') : null;
 
     // --- Helpers ---
 
@@ -123,16 +129,44 @@
             return;
         }
 
-        // Detach previous listener
-        if (roomRef) {
-            roomRef.off();
+        // Detach previous listeners
+        if (roomRef) roomRef.off();
+        if (usersRef) usersRef.off();
+        if (presenceRef) {
+            presenceRef.remove();
+            presenceRef.onDisconnect().cancel();
         }
 
         currentRoom = roomCode;
         roomInput.value = roomCode;
         roomRef = db.ref('rooms/' + roomCode);
+        usersRef = db.ref('rooms/' + roomCode + '/users');
+        presenceRef = db.ref('rooms/' + roomCode + '/users/' + sessionId);
 
         setRoomStatus('⏳ Connecting...', '');
+        liveUsers.classList.add('hidden');
+
+        // Manage Presence
+        if (connectedRef) {
+            connectedRef.on('value', (snap) => {
+                if (snap.val() === true && currentRoom === roomCode) {
+                    presenceRef.onDisconnect().remove();
+                    presenceRef.set(true);
+                }
+            });
+        }
+
+        // Listen for user count changes
+        usersRef.on('value', (snap) => {
+            if (snap.exists()) {
+                const count = Object.keys(snap.val()).length;
+                liveUsers.textContent = '👥 ' + count;
+                liveUsers.classList.remove('hidden');
+            } else {
+                liveUsers.textContent = '👥 1';
+                liveUsers.classList.remove('hidden');
+            }
+        });
 
         // Listen for real-time changes
         roomRef.on('value', (snapshot) => {
