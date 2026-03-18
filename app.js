@@ -40,7 +40,7 @@
     const langSelect   = document.getElementById('language-select');
     const btnShare     = document.getElementById('btn-share');
     const btnCopy      = document.getElementById('btn-copy');
-    const btnNew       = document.getElementById('btn-new');
+
     const btnClear     = document.getElementById('btn-clear');
     const fabClear     = document.getElementById('fab-clear');
     const btnEdit      = document.getElementById('btn-edit');
@@ -58,6 +58,7 @@
     // --- State ---
     let toastTimeout = null;
     let syncTimeout = null;
+    let detectTimeout = null;
 
     // --- Helpers ---
 
@@ -219,6 +220,30 @@
         return false;
     }
 
+    // --- Auto Language Detection ---
+
+    function autoDetectLanguage() {
+        if (langSelect.value !== 'auto') return;
+
+        clearTimeout(detectTimeout);
+        detectTimeout = setTimeout(() => {
+            const code = codeInput.value.trim();
+            if (!code || code.length < 10) return;
+
+            const result = hljs.highlightAuto(code);
+            if (result.language) {
+                // Find matching option in select
+                const options = Array.from(langSelect.options);
+                const match = options.find(opt => opt.value === result.language);
+                if (match) {
+                    langSelect.value = result.language;
+                    showToast('🔍 Detected: ' + match.textContent);
+                    syncToFirebase();
+                }
+            }
+        }, 500); // debounce 500ms
+    }
+
     // --- Syntax Highlighting ---
 
     function highlightCode() {
@@ -310,20 +335,7 @@
         });
     }
 
-    // --- New Snippet ---
 
-    function newSnippet() {
-        codeInput.value = '';
-        codePreview.textContent = '';
-        codePreview.className = 'hljs';
-        langSelect.value = 'auto';
-        updateLineNumbers();
-        updateStats();
-        switchMode('edit');
-        syncToFirebase();
-        codeInput.focus();
-        showToast('✨ Ready for new code!');
-    }
 
     // --- Tab key support ---
 
@@ -347,6 +359,7 @@
         updateLineNumbers();
         updateStats();
         syncToFirebase();
+        autoDetectLanguage();
     });
 
     codeInput.addEventListener('scroll', syncScroll);
@@ -354,7 +367,7 @@
 
     btnShare.addEventListener('click', shareCode);
     btnCopy.addEventListener('click', copyCode);
-    btnNew.addEventListener('click', newSnippet);
+
     btnClear.addEventListener('click', clearAll);
     fabClear.addEventListener('click', clearAll);
 
