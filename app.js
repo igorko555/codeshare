@@ -220,6 +220,59 @@
         return false;
     }
 
+    // --- Auto Save to LocalStorage ---
+    
+    const LOCAL_KEYS = {
+        DATA: 'codedrop_autosave',
+        TIME: 'codedrop_autosave_time'
+    };
+
+    function saveLocal() {
+        if (currentRoom) return; // Do not auto-save if in a room
+        
+        const code = codeInput.value;
+        if (!code.trim()) {
+            localStorage.removeItem(LOCAL_KEYS.DATA);
+            localStorage.removeItem(LOCAL_KEYS.TIME);
+            return;
+        }
+
+        const data = {
+            code: code,
+            language: langSelect.value
+        };
+        localStorage.setItem(LOCAL_KEYS.DATA, JSON.stringify(data));
+        localStorage.setItem(LOCAL_KEYS.TIME, Date.now());
+    }
+
+    function loadLocal() {
+        const timeStr = localStorage.getItem(LOCAL_KEYS.TIME);
+        if (!timeStr) return false;
+
+        const age = Date.now() - parseInt(timeStr, 10);
+        const MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours in ms
+
+        if (age > MAX_AGE) {
+            // Expired, clear it
+            localStorage.removeItem(LOCAL_KEYS.DATA);
+            localStorage.removeItem(LOCAL_KEYS.TIME);
+            return false;
+        }
+
+        const dataStr = localStorage.getItem(LOCAL_KEYS.DATA);
+        if (dataStr) {
+            try {
+                const data = JSON.parse(dataStr);
+                codeInput.value = data.code || '';
+                langSelect.value = data.language || 'auto';
+                return true;
+            } catch (e) {
+                console.error('Error parsing local storage');
+            }
+        }
+        return false;
+    }
+
     // --- Auto Language Detection ---
 
     function autoDetectLanguage() {
@@ -298,6 +351,11 @@
         codeInput.value = '';
         codePreview.textContent = '';
         codePreview.className = 'hljs';
+        
+        // Also clear local storage
+        localStorage.removeItem(LOCAL_KEYS.DATA);
+        localStorage.removeItem(LOCAL_KEYS.TIME);
+        
         updateLineNumbers();
         updateStats();
         switchMode('edit');
@@ -360,6 +418,7 @@
         updateStats();
         syncToFirebase();
         autoDetectLanguage();
+        saveLocal();
     });
 
     codeInput.addEventListener('scroll', syncScroll);
@@ -376,6 +435,7 @@
 
     langSelect.addEventListener('change', () => {
         syncToFirebase();
+        saveLocal();
         if (previewPane.classList.contains('active-pane')) {
             highlightCode();
         }
@@ -398,5 +458,12 @@
     // Try to load room from URL hash
     if (!loadRoomFromHash()) {
         setRoomStatus('No room — click "+ New Room" to start', '');
+        
+        // If not joining a room, try to load offline saved data
+        if (loadLocal()) {
+            updateLineNumbers();
+            updateStats();
+            showToast('💾 Restored unsaved code');
+        }
     }
 })();
