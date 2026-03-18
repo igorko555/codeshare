@@ -73,14 +73,10 @@ body {
     gap: 10px;
 }
 
-.logo-icon {
-    font-size: 1.5rem;
-    background: linear-gradient(135deg, var(--accent), #ec4899);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    font-weight: 700;
-    font-family: var(--font-mono);
+.logo-img {
+    height: 32px;
+    width: auto;
+    object-fit: contain;
 }
 
 #app-header h1 {
@@ -580,7 +576,7 @@ body {
 }
 
 @media (max-width: 380px) {
-    .logo-icon {
+    .logo-img {
         display: none;
     }
 
