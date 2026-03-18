@@ -330,6 +330,7 @@ body {
     overflow: hidden;
     user-select: none;
     flex-shrink: 0;
+    white-space: pre-wrap;
 }
 
 #code-input {
