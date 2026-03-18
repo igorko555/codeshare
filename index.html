@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeDrop — Share Code Instantly</title>
+    <meta name="description" content="Share code snippets instantly with syntax highlighting. Paste, share, done.">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Highlight.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+    <!-- Header -->
+    <header id="app-header">
+        <div class="header-brand">
+            <span class="logo-icon">⟨/⟩</span>
+            <h1>CodeDrop</h1>
+        </div>
+        <div class="header-actions">
+            <select id="language-select" title="Language">
+                <option value="auto">Auto Detect</option>
+                <option value="javascript">JavaScript</option>
+                <option value="typescript">TypeScript</option>
+                <option value="python">Python</option>
+                <option value="java">Java</option>
+                <option value="cpp">C++</option>
+                <option value="csharp">C#</option>
+                <option value="go">Go</option>
+                <option value="rust">Rust</option>
+                <option value="php">PHP</option>
+                <option value="ruby">Ruby</option>
+                <option value="html">HTML</option>
+                <option value="css">CSS</option>
+                <option value="sql">SQL</option>
+                <option value="bash">Bash</option>
+                <option value="json">JSON</option>
+                <option value="xml">XML</option>
+                <option value="yaml">YAML</option>
+                <option value="markdown">Markdown</option>
+            </select>
+        </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div id="toolbar">
+        <button id="btn-share" class="toolbar-btn btn-primary" title="Share code">
+            <span class="btn-icon">🔗</span>
+            <span class="btn-label">Share</span>
+        </button>
+        <button id="btn-copy" class="toolbar-btn" title="Copy code">
+            <span class="btn-icon">📋</span>
+            <span class="btn-label">Copy</span>
+        </button>
+        <button id="btn-new" class="toolbar-btn" title="New snippet">
+            <span class="btn-icon">✨</span>
+            <span class="btn-label">New</span>
+        </button>
+        <button id="btn-clear" class="toolbar-btn btn-danger" title="Clear all content">
+            <span class="btn-icon">🗑️</span>
+            <span class="btn-label">Clear All</span>
+        </button>
+        <div class="toolbar-info">
+            <span id="line-count">Lines: 0</span>
+            <span id="char-count">Chars: 0</span>
+        </div>
+    </div>
+
+    <!-- Editor Area -->
+    <main id="editor-area">
+        <!-- Edit Mode -->
+        <div id="editor-pane" class="active-pane">
+            <div class="line-numbers" id="line-numbers"></div>
+            <textarea
+                id="code-input"
+                spellcheck="false"
+                autocapitalize="off"
+                autocomplete="off"
+                autocorrect="off"
+                placeholder="Paste or type your code here..."
+            ></textarea>
+        </div>
+
+        <!-- Preview Mode -->
+        <div id="preview-pane">
+            <pre><code id="code-preview" class="hljs"></code></pre>
+        </div>
+    </main>
+
+    <!-- Mode Toggle (Edit / Preview) -->
+    <div id="mode-toggle">
+        <button id="btn-edit" class="mode-btn active" title="Edit mode">
+            <span>✏️ Edit</span>
+        </button>
+        <button id="btn-preview" class="mode-btn" title="Preview with syntax highlighting">
+            <span>👁️ Preview</span>
+        </button>
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- Mobile FAB: Clear All -->
+    <button id="fab-clear" class="fab-clear" title="Clear all content">🗑️</button>
+
+    <script src="app.js"></script>
+</body>
+</html>
