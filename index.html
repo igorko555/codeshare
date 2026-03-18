@@ -11,6 +11,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+    <!-- Firebase SDK (compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
     <!-- Highlight.js -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -49,6 +53,15 @@
             </select>
         </div>
     </header>
+
+    <!-- Room Bar -->
+    <div id="room-bar">
+        <span class="room-label">🔗 Room:</span>
+        <input id="room-input" type="text" placeholder="Enter room code..." maxlength="20" spellcheck="false">
+        <button id="btn-join-room" class="room-btn" title="Join room">Join</button>
+        <button id="btn-new-room" class="room-btn room-btn-new" title="Create new room">+ New Room</button>
+        <span id="room-status" class="room-status"></span>
+    </div>
 
     <!-- Toolbar -->
     <div id="toolbar">

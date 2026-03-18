@@ -1,9 +1,35 @@
 /* ============================================================
-   CodeDrop — App Logic
+   CodeDrop — App Logic with Firebase Real-Time Sync
    ============================================================ */
 
 (function () {
     'use strict';
+
+    // =====================================================
+    //  🔥 FIREBASE CONFIG — Replace with your own!
+    // =====================================================
+    const firebaseConfig = {
+        apiKey: "AIzaSyAI7BqL-zT2lpFYL31ouMvgKqa7GhL2qBo",
+        authDomain: "codedrop-e5238.firebaseapp.com",
+        databaseURL: "https://codedrop-e5238-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "codedrop-e5238",
+        storageBucket: "codedrop-e5238.firebasestorage.app",
+        messagingSenderId: "911968864855",
+        appId: "1:911968864855:web:01d65b624603e4ab50b112"
+    };
+
+    // --- Firebase Init ---
+    let db = null;
+    let roomRef = null;
+    let isRemoteUpdate = false; // prevents echo loops
+    let currentRoom = null;
+
+    try {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+    } catch (e) {
+        console.warn('Firebase init failed:', e.message);
+    }
 
     // --- DOM Elements ---
     const codeInput    = document.getElementById('code-input');
@@ -23,8 +49,15 @@
     const previewPane  = document.getElementById('preview-pane');
     const toast        = document.getElementById('toast');
 
+    // Room UI
+    const roomInput    = document.getElementById('room-input');
+    const btnJoinRoom  = document.getElementById('btn-join-room');
+    const btnNewRoom   = document.getElementById('btn-new-room');
+    const roomStatus   = document.getElementById('room-status');
+
     // --- State ---
     let toastTimeout = null;
+    let syncTimeout = null;
 
     // --- Helpers ---
 
@@ -58,70 +91,132 @@
         lineNumbers.scrollTop = codeInput.scrollTop;
     }
 
-    // --- Encode / Decode for URL ---
-
-    function encodeCode(code) {
-        try {
-            return btoa(unescape(encodeURIComponent(code)));
-        } catch (e) {
-            return '';
+    function generateRoomCode() {
+        const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        let code = '';
+        for (let i = 0; i < 6; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
         }
+        return code;
     }
 
-    function decodeCode(encoded) {
-        try {
-            return decodeURIComponent(escape(atob(encoded)));
-        } catch (e) {
-            return '';
-        }
+    // =====================================================
+    //  🔥 FIREBASE ROOM SYNC
+    // =====================================================
+
+    function setRoomStatus(text, type) {
+        roomStatus.textContent = text;
+        roomStatus.className = 'room-status ' + (type || '');
     }
 
-    // --- Share ---
-
-    function shareCode() {
-        const code = codeInput.value.trim();
-        if (!code) {
-            showToast('Nothing to share!', 'danger');
+    function joinRoom(roomCode) {
+        if (!db) {
+            showToast('Firebase not configured!', 'danger');
+            setRoomStatus('⚠️ Firebase not set up', 'disconnected');
             return;
         }
 
-        const lang = langSelect.value;
-        const payload = lang + '|' + encodeCode(code);
-        window.location.hash = payload;
+        roomCode = roomCode.trim().toLowerCase();
+        if (!roomCode) {
+            showToast('Enter a room code!', 'danger');
+            return;
+        }
 
-        // Copy URL
-        const url = window.location.href;
+        // Detach previous listener
+        if (roomRef) {
+            roomRef.off();
+        }
+
+        currentRoom = roomCode;
+        roomInput.value = roomCode;
+        roomRef = db.ref('rooms/' + roomCode);
+
+        setRoomStatus('⏳ Connecting...', '');
+
+        // Listen for real-time changes
+        roomRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                isRemoteUpdate = true;
+
+                // Preserve cursor position
+                const cursorPos = codeInput.selectionStart;
+                const wasAtEnd = cursorPos === codeInput.value.length;
+
+                if (data.code !== undefined && data.code !== codeInput.value) {
+                    codeInput.value = data.code;
+                    updateLineNumbers();
+                    updateStats();
+
+                    // Restore cursor
+                    if (wasAtEnd) {
+                        codeInput.selectionStart = codeInput.selectionEnd = codeInput.value.length;
+                    } else {
+                        codeInput.selectionStart = codeInput.selectionEnd = Math.min(cursorPos, codeInput.value.length);
+                    }
+                }
+
+                if (data.language && data.language !== langSelect.value) {
+                    langSelect.value = data.language;
+                }
+
+                // Update preview if active
+                if (previewPane.classList.contains('active-pane')) {
+                    highlightCode();
+                }
+
+                isRemoteUpdate = false;
+            }
+            setRoomStatus('🟢 Connected: ' + roomCode, 'connected');
+        }, (error) => {
+            console.error('Firebase error:', error);
+            setRoomStatus('🔴 Error: ' + error.message, 'disconnected');
+        });
+
+        // Update URL hash
+        window.location.hash = 'room=' + roomCode;
+        showToast('🔗 Joined room: ' + roomCode);
+    }
+
+    function syncToFirebase() {
+        if (!roomRef || isRemoteUpdate) return;
+
+        clearTimeout(syncTimeout);
+        syncTimeout = setTimeout(() => {
+            roomRef.update({
+                code: codeInput.value,
+                language: langSelect.value,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+            });
+        }, 300); // debounce 300ms
+    }
+
+    function createNewRoom() {
+        const code = generateRoomCode();
+        roomInput.value = code;
+        joinRoom(code);
+
+        // Copy room link
+        const url = window.location.origin + window.location.pathname + '#room=' + code;
         navigator.clipboard.writeText(url).then(() => {
-            showToast('🔗 Link copied to clipboard!');
+            showToast('✨ Room created! Link copied!');
         }).catch(() => {
-            showToast('🔗 URL updated — copy it from the address bar');
+            showToast('✨ Room created: ' + code);
         });
     }
 
-    // --- Load from URL ---
-
-    function loadFromHash() {
+    // --- Load room from URL ---
+    function loadRoomFromHash() {
         const hash = window.location.hash.slice(1);
-        if (!hash) return;
-
-        let lang = 'auto';
-        let encoded = hash;
-
-        const pipeIdx = hash.indexOf('|');
-        if (pipeIdx !== -1) {
-            lang = hash.substring(0, pipeIdx);
-            encoded = hash.substring(pipeIdx + 1);
+        if (hash.startsWith('room=')) {
+            const roomCode = hash.substring(5);
+            if (roomCode) {
+                roomInput.value = roomCode;
+                joinRoom(roomCode);
+                return true;
+            }
         }
-
-        const code = decodeCode(encoded);
-        if (code) {
-            codeInput.value = code;
-            langSelect.value = lang;
-            updateLineNumbers();
-            updateStats();
-            // Auto-switch to preview
-            switchMode('preview');
-        }
+        return false;
     }
 
     // --- Syntax Highlighting ---
@@ -178,11 +273,26 @@
         codeInput.value = '';
         codePreview.textContent = '';
         codePreview.className = 'hljs';
-        window.location.hash = '';
         updateLineNumbers();
         updateStats();
         switchMode('edit');
+        syncToFirebase();
         showToast('🗑️ Cleared!');
+    }
+
+    // --- Share ---
+
+    function shareCode() {
+        if (currentRoom) {
+            const url = window.location.origin + window.location.pathname + '#room=' + currentRoom;
+            navigator.clipboard.writeText(url).then(() => {
+                showToast('🔗 Room link copied!');
+            }).catch(() => {
+                showToast('🔗 Room: ' + currentRoom);
+            });
+        } else {
+            showToast('Create a room first!', 'danger');
+        }
     }
 
     // --- Copy ---
@@ -207,10 +317,10 @@
         codePreview.textContent = '';
         codePreview.className = 'hljs';
         langSelect.value = 'auto';
-        history.replaceState(null, '', window.location.pathname);
         updateLineNumbers();
         updateStats();
         switchMode('edit');
+        syncToFirebase();
         codeInput.focus();
         showToast('✨ Ready for new code!');
     }
@@ -227,6 +337,7 @@
             codeInput.selectionStart = codeInput.selectionEnd = start + 4;
             updateLineNumbers();
             updateStats();
+            syncToFirebase();
         }
     }
 
@@ -235,6 +346,7 @@
     codeInput.addEventListener('input', () => {
         updateLineNumbers();
         updateStats();
+        syncToFirebase();
     });
 
     codeInput.addEventListener('scroll', syncScroll);
@@ -250,13 +362,28 @@
     btnPreview.addEventListener('click', () => switchMode('preview'));
 
     langSelect.addEventListener('change', () => {
+        syncToFirebase();
         if (previewPane.classList.contains('active-pane')) {
             highlightCode();
+        }
+    });
+
+    // Room event listeners
+    btnJoinRoom.addEventListener('click', () => joinRoom(roomInput.value));
+    btnNewRoom.addEventListener('click', createNewRoom);
+
+    roomInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            joinRoom(roomInput.value);
         }
     });
 
     // --- Init ---
     updateLineNumbers();
     updateStats();
-    loadFromHash();
+
+    // Try to load room from URL hash
+    if (!loadRoomFromHash()) {
+        setRoomStatus('No room — click "+ New Room" to start', '');
+    }
 })();

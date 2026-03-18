@@ -129,6 +129,90 @@ body {
     color: var(--text-primary);
 }
 
+/* --- Room Bar --- */
+#room-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+    z-index: 9;
+}
+
+.room-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+#room-input {
+    flex: 1;
+    max-width: 200px;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--accent-hover);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    letter-spacing: 0.05em;
+}
+
+#room-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.room-btn {
+    font-family: var(--font-ui);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.room-btn:hover {
+    border-color: var(--text-muted);
+    background: rgba(110, 118, 129, 0.15);
+}
+
+.room-btn-new {
+    background: linear-gradient(135deg, var(--success), #22c55e);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 2px 8px var(--success-glow);
+}
+
+.room-btn-new:hover {
+    box-shadow: 0 4px 14px var(--success-glow);
+}
+
+.room-status {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    margin-left: auto;
+}
+
+.room-status.connected {
+    color: var(--success);
+}
+
+.room-status.disconnected {
+    color: var(--danger);
+}
+
 /* --- Toolbar --- */
 #toolbar {
     height: var(--toolbar-h);
@@ -424,6 +508,30 @@ body {
 
     #app-header h1 {
         font-size: 1.1rem;
+    }
+
+    #room-bar {
+        padding: 6px 10px;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    #room-input {
+        max-width: 120px;
+        font-size: 0.7rem;
+        padding: 4px 8px;
+    }
+
+    .room-btn {
+        font-size: 0.7rem;
+        padding: 4px 8px;
+    }
+
+    .room-status {
+        width: 100%;
+        text-align: center;
+        margin-left: 0;
+        font-size: 0.65rem;
     }
 
     #toolbar {
