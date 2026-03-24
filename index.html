@@ -14,6 +14,7 @@
     <!-- Firebase SDK (compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 
     <!-- Highlight.js -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css">
@@ -106,6 +107,20 @@
         <div id="preview-pane">
             <pre><code id="code-preview" class="hljs"></code></pre>
         </div>
+
+        <!-- Files Mode -->
+        <div id="files-pane">
+            <div class="files-header">
+                <h2>Room Files</h2>
+                <label for="file-upload" class="upload-btn">
+                    <span>⬆️ Upload File</span>
+                    <input type="file" id="file-upload" hidden>
+                </label>
+            </div>
+            <div id="files-list" class="files-list">
+                <div class="empty-state">No files shared in this room yet.</div>
+            </div>
+        </div>
     </main>
 
     <!-- Mode Toggle (Edit / Preview) -->
@@ -115,6 +130,9 @@
         </button>
         <button id="btn-preview" class="mode-btn" title="Preview with syntax highlighting">
             <span>👁️ Preview</span>
+        </button>
+        <button id="btn-files" class="mode-btn" title="Shared files">
+            <span>📁 Files</span>
         </button>
     </div>
 

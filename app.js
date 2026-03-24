@@ -20,13 +20,16 @@
 
     // --- Firebase Init ---
     let db = null;
+    let storage = null;
     let roomRef = null;
+    let filesRef = null;
     let isRemoteUpdate = false; // prevents echo loops
     let currentRoom = null;
 
     try {
         firebase.initializeApp(firebaseConfig);
         db = firebase.database();
+        storage = firebase.storage();
     } catch (e) {
         console.warn('Firebase init failed:', e.message);
     }
@@ -45,9 +48,17 @@
     const fabClear     = document.getElementById('fab-clear');
     const btnEdit      = document.getElementById('btn-edit');
     const btnPreview   = document.getElementById('btn-preview');
+    const btnFiles     = document.getElementById('btn-files');
     const editorPane   = document.getElementById('editor-pane');
     const previewPane  = document.getElementById('preview-pane');
+    const filesPane    = document.getElementById('files-pane');
     const toast        = document.getElementById('toast');
+
+    // File elements
+    const fileUpload   = document.getElementById('file-upload');
+    const filesList    = document.getElementById('files-list');
+    const uploadBtnLabel = document.querySelector('.upload-btn span');
+
 
     const roomInput    = document.getElementById('room-input');
     const btnJoinRoom  = document.getElementById('btn-join-room');
@@ -132,6 +143,7 @@
         // Detach previous listeners
         if (roomRef) roomRef.off();
         if (usersRef) usersRef.off();
+        if (filesRef) filesRef.off();
         if (presenceRef) {
             presenceRef.remove();
             presenceRef.onDisconnect().cancel();
@@ -141,6 +153,7 @@
         roomInput.value = roomCode;
         roomRef = db.ref('rooms/' + roomCode);
         usersRef = db.ref('rooms/' + roomCode + '/users');
+        filesRef = db.ref('rooms/' + roomCode + '/files');
         presenceRef = db.ref('rooms/' + roomCode + '/users/' + sessionId);
 
         setRoomStatus('⏳ Connecting...', '');
@@ -166,6 +179,11 @@
                 liveUsers.textContent = '👥 1';
                 liveUsers.classList.remove('hidden');
             }
+        });
+
+        // Listen for files
+        filesRef.on('value', (snapshot) => {
+            renderFiles(snapshot.val());
         });
 
         // Listen for real-time changes
@@ -361,18 +379,126 @@
     // --- Mode Switching ---
 
     function switchMode(mode) {
+        editorPane.classList.remove('active-pane');
+        previewPane.classList.remove('active-pane');
+        if (filesPane) filesPane.classList.remove('active-pane');
+        
+        btnEdit.classList.remove('active');
+        btnPreview.classList.remove('active');
+        if (btnFiles) btnFiles.classList.remove('active');
+
         if (mode === 'edit') {
             editorPane.classList.add('active-pane');
-            previewPane.classList.remove('active-pane');
             btnEdit.classList.add('active');
-            btnPreview.classList.remove('active');
-        } else {
+        } else if (mode === 'preview') {
             highlightCode();
             previewPane.classList.add('active-pane');
-            editorPane.classList.remove('active-pane');
             btnPreview.classList.add('active');
-            btnEdit.classList.remove('active');
+        } else if (mode === 'files' && filesPane) {
+            filesPane.classList.add('active-pane');
+            btnFiles.classList.add('active');
         }
+    }
+
+    // --- File Upload & Rendering ---
+
+    function formatBytes(bytes, decimals = 2) {
+        if (!+bytes) return '0 Bytes';
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    }
+
+    function renderFiles(filesObj) {
+        if (!filesList) return;
+        if (!filesObj) {
+            filesList.innerHTML = '<div class="empty-state">No files shared in this room yet.</div>';
+            return;
+        }
+
+        filesList.innerHTML = '';
+        const files = Object.values(filesObj).sort((a, b) => b.timestamp - a.timestamp);
+        
+        files.forEach(file => {
+            const card = document.createElement('div');
+            card.className = 'file-card';
+            
+            const timeStr = new Date(file.timestamp).toLocaleTimeString();
+            const safeUrl = escapeHTML(file.url);
+            
+            card.innerHTML = 
+                '<div class="file-info">' +
+                    '<span class="file-icon">📄</span>' +
+                    '<div class="file-details">' +
+                        '<span class="file-name">' + escapeHTML(file.name) + '</span>' +
+                        '<span class="file-meta">' + formatBytes(file.size) + ' • ' + timeStr + '</span>' +
+                    '</div>' +
+                '</div>' +
+                '<a href="' + safeUrl + '" target="_blank" download class="file-action" title="Download">' +
+                    '⬇️' +
+                '</a>';
+            filesList.appendChild(card);
+        });
+    }
+
+    function escapeHTML(str) {
+        if (!str) return '';
+        return str.replace(/[&<>'"]/g, 
+            tag => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                "'": '&#39;',
+                '"': '&quot;'
+            }[tag] || tag)
+        );
+    }
+
+    if (fileUpload) {
+        fileUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file || !currentRoom) return;
+
+            if (!storage) {
+                showToast('Storage not configured!', 'danger');
+                return;
+            }
+
+            const btnContainer = fileUpload.parentElement;
+            const originalText = uploadBtnLabel.textContent;
+            
+            try {
+                uploadBtnLabel.textContent = '⏳ Uploading...';
+                btnContainer.classList.add('uploading');
+
+                const timestamp = Date.now();
+                const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+                const filePath = 'rooms/' + currentRoom + '/' + timestamp + '_' + safeName;
+                
+                const fileRef = storage.ref().child(filePath);
+                await fileRef.put(file);
+                const downloadUrl = await fileRef.getDownloadURL();
+
+                await filesRef.push({
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    url: downloadUrl,
+                    timestamp: timestamp
+                });
+
+                showToast('✅ File uploaded!');
+                fileUpload.value = ''; // Reset
+            } catch (error) {
+                console.error('Upload failed', error);
+                showToast('❌ Upload failed: ' + error.message, 'danger');
+            } finally {
+                uploadBtnLabel.textContent = originalText;
+                btnContainer.classList.remove('uploading');
+            }
+        });
     }
 
     // --- Clear ---
@@ -466,6 +592,7 @@
 
     btnEdit.addEventListener('click', () => switchMode('edit'));
     btnPreview.addEventListener('click', () => switchMode('preview'));
+    if (btnFiles) btnFiles.addEventListener('click', () => switchMode('files'));
 
     langSelect.addEventListener('change', () => {
         syncToFirebase();
