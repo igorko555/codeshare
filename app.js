@@ -149,6 +149,10 @@
             presenceRef.onDisconnect().cancel();
         }
 
+        // Prevent pending updates from leaking into the new room
+        clearTimeout(syncTimeout);
+        clearTimeout(detectTimeout);
+
         currentRoom = roomCode;
         roomInput.value = roomCode;
         roomRef = db.ref('rooms/' + roomCode);
