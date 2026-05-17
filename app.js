@@ -24,6 +24,7 @@
     let roomRef = null;
     let filesRef = null;
     let isRemoteUpdate = false; // prevents echo loops
+    let isLocalTyping = false; // prevents remote overwrites while typing
     let currentRoom = null;
 
     try {
@@ -343,7 +344,7 @@
                 const wasAtEnd = cursorPos === codeInput.value.length;
 
                 if (data.code !== undefined) {
-                    if (data.code !== codeInput.value) {
+                    if (data.code !== codeInput.value && !isLocalTyping) {
                         codeInput.value = data.code;
                         updateLineNumbers();
                         updateStats();
@@ -367,7 +368,7 @@
                     }
                 }
 
-                if (data.language && data.language !== langSelect.value) {
+                if (data.language && data.language !== langSelect.value && !isLocalTyping) {
                     langSelect.value = data.language;
                 }
 
@@ -403,12 +404,15 @@
     function syncToFirebase() {
         if (!roomRef || isRemoteUpdate) return;
 
+        isLocalTyping = true;
         clearTimeout(syncTimeout);
         syncTimeout = setTimeout(() => {
             roomRef.update({
                 code: codeInput.value,
                 language: langSelect.value,
                 updatedAt: firebase.database.ServerValue.TIMESTAMP
+            }, (error) => {
+                isLocalTyping = false;
             });
         }, 300); // debounce 300ms
     }
