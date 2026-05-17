@@ -254,6 +254,17 @@
                 }
 
                 isRemoteUpdate = false;
+            } else {
+                // Room is empty, clear the local editor
+                isRemoteUpdate = true;
+                codeInput.value = '';
+                langSelect.value = 'auto';
+                updateLineNumbers();
+                updateStats();
+                if (previewPane.classList.contains('active-pane')) {
+                    highlightCode();
+                }
+                isRemoteUpdate = false;
             }
             setRoomStatus('🟢 Connected: ' + roomCode, 'connected');
         }, (error) => {
