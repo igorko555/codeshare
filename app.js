@@ -362,6 +362,9 @@
                         updateLineNumbers();
                         updateStats();
                     }
+                    if (langSelect.value !== 'auto') {
+                        langSelect.value = 'auto';
+                    }
                 }
 
                 if (data.language && data.language !== langSelect.value) {
