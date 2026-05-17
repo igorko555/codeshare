@@ -504,13 +504,17 @@
             const code = codeInput.value.trim();
             if (!code || code.length < 10) return;
 
-            const result = hljs.highlightAuto(code);
+            const langs = Array.from(langSelect.options)
+                               .map(opt => opt.value)
+                               .filter(v => v !== 'auto' && v !== 'plaintext');
+
+            const result = hljs.highlightAuto(code, langs);
             if (result.language) {
                 // Find matching option in select
                 const options = Array.from(langSelect.options);
-                const match = options.find(opt => opt.value === result.language);
+                const match = options.find(opt => opt.value === result.language || opt.value === result.language.replace('++', 'pp'));
                 if (match) {
-                    langSelect.value = result.language;
+                    langSelect.value = match.value;
                     showToast('🔍 Detected: ' + match.textContent);
                     syncToFirebase();
                 }
@@ -725,19 +729,19 @@
 
 
     // --- Code Execution ---
-    const PISTON_LANG_MAP = {
-        'javascript': { lang: 'javascript', version: '*' },
-        'typescript': { lang: 'typescript', version: '*' },
-        'python': { lang: 'python', version: '*' },
-        'java': { lang: 'java', version: '*' },
-        'c': { lang: 'c', version: '*' },
-        'cpp': { lang: 'c++', version: '*' },
-        'csharp': { lang: 'csharp', version: '*' },
-        'go': { lang: 'go', version: '*' },
-        'rust': { lang: 'rust', version: '*' },
-        'php': { lang: 'php', version: '*' },
-        'ruby': { lang: 'ruby', version: '*' },
-        'bash': { lang: 'bash', version: '*' }
+    const WANDBOX_LANG_MAP = {
+        'javascript': 'nodejs-20.17.0',
+        'typescript': 'typescript-5.6.2',
+        'python': 'cpython-head',
+        'java': 'openjdk-jdk-22+36',
+        'c': 'gcc-head-c',
+        'cpp': 'gcc-head',
+        'csharp': 'dotnetcore-8.0.402',
+        'go': 'go-1.23.2',
+        'rust': 'rust-1.82.0',
+        'php': 'php-8.3.12',
+        'ruby': 'ruby-3.4.9',
+        'bash': 'bash'
     };
 
     async function executeCode() {
@@ -749,47 +753,50 @@
 
         let lang = langSelect.value;
         if (lang === 'auto') {
-            const result = hljs.highlightAuto(code);
+            const langs = Array.from(langSelect.options).map(opt => opt.value).filter(v => v !== 'auto');
+            const result = hljs.highlightAuto(code, langs);
             lang = result.language;
+            if (lang === 'c++') lang = 'cpp';
         }
 
-        const pistonInfo = PISTON_LANG_MAP[lang];
-        if (!pistonInfo) {
+        const compiler = WANDBOX_LANG_MAP[lang];
+        if (!compiler) {
             showToast(`Execution not supported for ${lang || 'this language'}`, 'danger');
             return;
         }
 
         consolePane.classList.remove('hidden-console');
-        consoleOutput.textContent = '⏳ Running...';
+        consoleOutput.textContent = '⏳ Running on Wandbox...';
         consoleOutput.className = '';
         
         try {
-            const response = await fetch('https://emkc.org/api/v2/piston/execute', {
+            const response = await fetch('https://wandbox.org/api/compile.json', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    language: pistonInfo.lang,
-                    version: pistonInfo.version,
-                    files: [{ content: code }]
+                    compiler: compiler,
+                    code: code,
+                    save: false
                 })
             });
 
             const result = await response.json();
             
-            if (result.run) {
-                let output = result.run.stdout;
-                if (result.run.stderr) {
-                    output += (output ? '\n' : '') + result.run.stderr;
-                }
-                if (!output.trim()) {
-                    output = '[Process exited with no output]';
-                }
-                consoleOutput.textContent = output;
-                if (result.run.code !== 0 && result.run.code !== null) {
-                    consoleOutput.classList.add('console-error');
-                }
-            } else {
-                consoleOutput.textContent = 'Error: ' + result.message;
+            let output = '';
+            if (result.compiler_message) {
+                output += result.compiler_message + '\n';
+            }
+            if (result.program_message) {
+                output += result.program_message;
+            }
+
+            if (!output.trim()) {
+                output = '[No output]';
+            }
+            
+            consoleOutput.textContent = output.trim();
+            
+            if (result.status !== '0' && result.status !== 0) {
                 consoleOutput.classList.add('console-error');
             }
         } catch (e) {
