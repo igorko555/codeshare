@@ -182,7 +182,27 @@
         });
 
         // Listen for files
-        filesRef.on('value', (snapshot) => {
+        filesRef.on('value', async (snapshot) => {
+            const filesObj = snapshot.val();
+            if (filesObj) {
+                const now = Date.now();
+                const MAX_AGE = 24 * 60 * 60 * 1000;
+                let hasDeletions = false;
+                
+                for (const [key, file] of Object.entries(filesObj)) {
+                    if (now - file.timestamp > MAX_AGE) {
+                        try {
+                            const fileRef = storage.refFromURL(file.url);
+                            await fileRef.delete();
+                        } catch (e) {
+                            console.warn('Could not delete old file from storage', e);
+                        }
+                        filesRef.child(key).remove();
+                        hasDeletions = true;
+                    }
+                }
+                if (hasDeletions) return; // DB update will trigger re-render
+            }
             renderFiles(snapshot.val());
         });
 
@@ -190,6 +210,21 @@
         roomRef.on('value', (snapshot) => {
             const data = snapshot.val();
             if (data) {
+                const now = Date.now();
+                const age = now - (data.updatedAt || now);
+                const MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours in ms
+                
+                if (data.updatedAt && age > MAX_AGE) {
+                    if (data.code !== '') {
+                        roomRef.update({
+                            code: '',
+                            language: 'auto',
+                            updatedAt: firebase.database.ServerValue.TIMESTAMP
+                        });
+                        return; // return so the next event updates the UI
+                    }
+                }
+
                 isRemoteUpdate = true;
 
                 // Preserve cursor position
