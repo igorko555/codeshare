@@ -42,6 +42,7 @@
     const charCount    = document.getElementById('char-count');
     const langSelect   = document.getElementById('language-select');
     const btnShare     = document.getElementById('btn-share');
+    const btnRun       = document.getElementById('btn-run');
     const btnCopy      = document.getElementById('btn-copy');
 
     const btnClear     = document.getElementById('btn-clear');
@@ -53,6 +54,12 @@
     const previewPane  = document.getElementById('preview-pane');
     const filesPane    = document.getElementById('files-pane');
     const toast        = document.getElementById('toast');
+
+    // Execution & Cursors
+    const consolePane  = document.getElementById('console-pane');
+    const btnCloseConsole = document.getElementById('btn-close-console');
+    const consoleOutput = document.getElementById('console-output');
+    const cursorsLayer = document.getElementById('cursors-layer');
 
     // File elements
     const fileUpload   = document.getElementById('file-upload');
@@ -71,9 +78,11 @@
     let syncTimeout = null;
     let detectTimeout = null;
     
-    // Presence State
+    // Presence & Cursor State
     const sessionId = 'session_' + Math.random().toString(36).substr(2, 9);
     let presenceRef = null;
+    let cursorsRef = null;
+    let myCursorRef = null;
     let usersRef = null;
     let connectedRef = db ? db.ref('.info/connected') : null;
 
@@ -107,6 +116,92 @@
 
     function syncScroll() {
         lineNumbers.scrollTop = codeInput.scrollTop;
+        if (cursorsLayer) {
+            cursorsLayer.style.transform = `translate(-${codeInput.scrollLeft}px, -${codeInput.scrollTop}px)`;
+        }
+    }
+
+    // --- Cursor & Execution Helpers ---
+    function getCaretCoordinates(element, position) {
+        const div = document.createElement('div');
+        const style = window.getComputedStyle(element);
+        
+        div.style.whiteSpace = style.whiteSpace;
+        div.style.wordWrap = style.wordWrap;
+        div.style.overflowWrap = style.overflowWrap;
+        div.style.position = 'absolute';
+        div.style.visibility = 'hidden';
+        div.style.fontFamily = style.fontFamily;
+        div.style.fontSize = style.fontSize;
+        div.style.lineHeight = style.lineHeight;
+        div.style.padding = style.padding;
+        div.style.border = style.border;
+        div.style.boxSizing = style.boxSizing;
+        div.style.width = element.clientWidth + 'px';
+        div.style.height = element.clientHeight + 'px';
+        
+        div.textContent = element.value.substring(0, position);
+        const span = document.createElement('span');
+        span.textContent = element.value.substring(position, position + 1) || '.';
+        div.appendChild(span);
+        
+        document.body.appendChild(div);
+        const coords = {
+            top: span.offsetTop,
+            left: span.offsetLeft,
+            height: span.offsetHeight
+        };
+        document.body.removeChild(div);
+        return coords;
+    }
+
+    const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#0ea5e9', '#3b82f6', '#6366f1', '#a855f7', '#d946ef', '#f43f5e'];
+
+    function hashCode(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        return hash;
+    }
+
+    function renderCursors(cursorsData) {
+        if (!cursorsData || !cursorsLayer) {
+            if (cursorsLayer) cursorsLayer.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+        const now = Date.now();
+        let guestCounter = 1;
+        const keys = Object.keys(cursorsData).sort();
+
+        for (const sId of keys) {
+            const data = cursorsData[sId];
+            if (sId === sessionId) continue;
+            if (now - data.updatedAt > 5 * 60 * 1000) continue; 
+
+            const coords = getCaretCoordinates(codeInput, data.pos);
+            const color = COLORS[Math.abs(hashCode(sId)) % COLORS.length];
+            
+            html += `
+                <div class="remote-cursor" style="top: ${coords.top}px; left: ${coords.left}px; height: ${coords.height}px; --color: ${color};">
+                    <div class="remote-cursor-name">Лемок ${guestCounter}</div>
+                </div>
+            `;
+            guestCounter++;
+        }
+        cursorsLayer.innerHTML = html;
+    }
+
+    let cursorUpdateTimeout = null;
+    function syncLocalCursor() {
+        if (!myCursorRef) return;
+        clearTimeout(cursorUpdateTimeout);
+        cursorUpdateTimeout = setTimeout(() => {
+            myCursorRef.set({
+                pos: codeInput.selectionStart,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+            });
+        }, 100);
     }
 
     function generateRoomCode() {
@@ -144,6 +239,11 @@
         if (roomRef) roomRef.off();
         if (usersRef) usersRef.off();
         if (filesRef) filesRef.off();
+        if (cursorsRef) cursorsRef.off();
+        if (myCursorRef) {
+            myCursorRef.remove();
+            myCursorRef.onDisconnect().cancel();
+        }
         if (presenceRef) {
             presenceRef.remove();
             presenceRef.onDisconnect().cancel();
@@ -158,17 +258,21 @@
         roomRef = db.ref('rooms/' + roomCode);
         usersRef = db.ref('rooms/' + roomCode + '/users');
         filesRef = db.ref('rooms/' + roomCode + '/files');
+        cursorsRef = db.ref('rooms/' + roomCode + '/cursors');
         presenceRef = db.ref('rooms/' + roomCode + '/users/' + sessionId);
+        myCursorRef = cursorsRef.child(sessionId);
 
         setRoomStatus('⏳ Connecting...', '');
         liveUsers.classList.add('hidden');
 
-        // Manage Presence
+        // Manage Presence & Cursors
         if (connectedRef) {
             connectedRef.on('value', (snap) => {
                 if (snap.val() === true && currentRoom === roomCode) {
                     presenceRef.onDisconnect().remove();
                     presenceRef.set(true);
+                    myCursorRef.onDisconnect().remove();
+                    syncLocalCursor();
                 }
             });
         }
@@ -209,6 +313,9 @@
             }
             renderFiles(snapshot.val());
         });
+
+        // Listen for cursors
+        cursorsRef.on('value', snap => renderCursors(snap.val()));
 
         // Listen for real-time changes
         roomRef.on('value', (snapshot) => {
@@ -614,6 +721,86 @@
 
 
 
+    // --- Code Execution ---
+    const PISTON_LANG_MAP = {
+        'javascript': { lang: 'javascript', version: '*' },
+        'typescript': { lang: 'typescript', version: '*' },
+        'python': { lang: 'python', version: '*' },
+        'java': { lang: 'java', version: '*' },
+        'c': { lang: 'c', version: '*' },
+        'cpp': { lang: 'c++', version: '*' },
+        'csharp': { lang: 'csharp', version: '*' },
+        'go': { lang: 'go', version: '*' },
+        'rust': { lang: 'rust', version: '*' },
+        'php': { lang: 'php', version: '*' },
+        'ruby': { lang: 'ruby', version: '*' },
+        'bash': { lang: 'bash', version: '*' }
+    };
+
+    async function executeCode() {
+        const code = codeInput.value.trim();
+        if (!code) {
+            showToast('Nothing to run!', 'danger');
+            return;
+        }
+
+        let lang = langSelect.value;
+        if (lang === 'auto') {
+            const result = hljs.highlightAuto(code);
+            lang = result.language;
+        }
+
+        const pistonInfo = PISTON_LANG_MAP[lang];
+        if (!pistonInfo) {
+            showToast(`Execution not supported for ${lang || 'this language'}`, 'danger');
+            return;
+        }
+
+        consolePane.classList.remove('hidden-console');
+        consoleOutput.textContent = '⏳ Running...';
+        consoleOutput.className = '';
+        
+        try {
+            const response = await fetch('https://emkc.org/api/v2/piston/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    language: pistonInfo.lang,
+                    version: pistonInfo.version,
+                    files: [{ content: code }]
+                })
+            });
+
+            const result = await response.json();
+            
+            if (result.run) {
+                let output = result.run.stdout;
+                if (result.run.stderr) {
+                    output += (output ? '\n' : '') + result.run.stderr;
+                }
+                if (!output.trim()) {
+                    output = '[Process exited with no output]';
+                }
+                consoleOutput.textContent = output;
+                if (result.run.code !== 0 && result.run.code !== null) {
+                    consoleOutput.classList.add('console-error');
+                }
+            } else {
+                consoleOutput.textContent = 'Error: ' + result.message;
+                consoleOutput.classList.add('console-error');
+            }
+        } catch (e) {
+            consoleOutput.textContent = 'Execution failed: ' + e.message;
+            consoleOutput.classList.add('console-error');
+        }
+    }
+
+    if (btnCloseConsole) {
+        btnCloseConsole.addEventListener('click', () => {
+            consolePane.classList.add('hidden-console');
+        });
+    }
+
     // --- Tab key support ---
 
     function handleTab(e) {
@@ -627,6 +814,7 @@
             updateLineNumbers();
             updateStats();
             syncToFirebase();
+            syncLocalCursor();
         }
     }
 
@@ -638,12 +826,19 @@
         syncToFirebase();
         autoDetectLanguage();
         saveLocal();
+        syncLocalCursor();
     });
 
     codeInput.addEventListener('scroll', syncScroll);
     codeInput.addEventListener('keydown', handleTab);
+    
+    // Cursor updates
+    codeInput.addEventListener('keyup', syncLocalCursor);
+    codeInput.addEventListener('click', syncLocalCursor);
+    codeInput.addEventListener('select', syncLocalCursor);
 
     btnShare.addEventListener('click', shareCode);
+    if (btnRun) btnRun.addEventListener('click', executeCode);
     btnCopy.addEventListener('click', copyCode);
 
     btnClear.addEventListener('click', clearAll);

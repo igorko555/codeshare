@@ -73,6 +73,10 @@
             <span class="btn-icon">🔗</span>
             <span class="btn-label">Share</span>
         </button>
+        <button id="btn-run" class="toolbar-btn btn-success" title="Run code">
+            <span class="btn-icon">▶</span>
+            <span class="btn-label">Run</span>
+        </button>
         <button id="btn-copy" class="toolbar-btn" title="Copy code">
             <span class="btn-icon">📋</span>
             <span class="btn-label">Copy</span>
@@ -94,14 +98,17 @@
         <!-- Edit Mode -->
         <div id="editor-pane" class="active-pane">
             <div class="line-numbers" id="line-numbers"></div>
-            <textarea
-                id="code-input"
-                spellcheck="false"
-                autocapitalize="off"
-                autocomplete="off"
-                autocorrect="off"
-                placeholder="Paste or type your code here..."
-            ></textarea>
+            <div class="editor-container">
+                <div id="cursors-layer"></div>
+                <textarea
+                    id="code-input"
+                    spellcheck="false"
+                    autocapitalize="off"
+                    autocomplete="off"
+                    autocorrect="off"
+                    placeholder="Paste or type your code here..."
+                ></textarea>
+            </div>
         </div>
 
         <!-- Preview Mode -->
@@ -121,6 +128,15 @@
             <div id="files-list" class="files-list">
                 <div class="empty-state">No files shared in this room yet.</div>
             </div>
+        </div>
+
+        <!-- Console Pane -->
+        <div id="console-pane" class="hidden-console">
+            <div class="console-header">
+                <span class="console-title">🖥️ Output</span>
+                <button id="btn-close-console" class="console-close" title="Close console">✖</button>
+            </div>
+            <pre id="console-output"></pre>
         </div>
     </main>
 
