@@ -178,7 +178,6 @@
         for (const sId of keys) {
             const data = cursorsData[sId];
             if (sId === sessionId) continue;
-            if (now - data.updatedAt > 5 * 60 * 1000) continue; 
 
             const coords = getCaretCoordinates(codeInput, data.pos);
             const color = COLORS[Math.abs(hashCode(sId)) % COLORS.length];
