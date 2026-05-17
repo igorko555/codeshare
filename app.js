@@ -235,16 +235,25 @@
                 const cursorPos = codeInput.selectionStart;
                 const wasAtEnd = cursorPos === codeInput.value.length;
 
-                if (data.code !== undefined && data.code !== codeInput.value) {
-                    codeInput.value = data.code;
-                    updateLineNumbers();
-                    updateStats();
+                if (data.code !== undefined) {
+                    if (data.code !== codeInput.value) {
+                        codeInput.value = data.code;
+                        updateLineNumbers();
+                        updateStats();
 
-                    // Restore cursor
-                    if (wasAtEnd) {
-                        codeInput.selectionStart = codeInput.selectionEnd = codeInput.value.length;
-                    } else {
-                        codeInput.selectionStart = codeInput.selectionEnd = Math.min(cursorPos, codeInput.value.length);
+                        // Restore cursor
+                        if (wasAtEnd) {
+                            codeInput.selectionStart = codeInput.selectionEnd = codeInput.value.length;
+                        } else {
+                            codeInput.selectionStart = codeInput.selectionEnd = Math.min(cursorPos, codeInput.value.length);
+                        }
+                    }
+                } else {
+                    // No code in DB yet, clear local editor
+                    if (codeInput.value !== '') {
+                        codeInput.value = '';
+                        updateLineNumbers();
+                        updateStats();
                     }
                 }
 
