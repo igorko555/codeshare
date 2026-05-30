@@ -326,7 +326,7 @@
                 const MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours in ms
                 
                 if (data.updatedAt && age > MAX_AGE) {
-                    if (data.code !== '') {
+                    if (data.code !== '' || data.language !== 'auto') {
                         roomRef.update({
                             code: '',
                             language: 'auto',
@@ -680,11 +680,12 @@
     // --- Clear ---
 
     function clearAll() {
-        if (codeInput.value.trim() === '') {
+        if (codeInput.value.trim() === '' && langSelect.value === 'auto') {
             showToast('Already empty!', 'danger');
             return;
         }
         codeInput.value = '';
+        langSelect.value = 'auto';
         codePreview.textContent = '';
         codePreview.className = 'hljs';
         
